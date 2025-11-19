@@ -192,6 +192,125 @@ Please provide a clear, accurate answer based on the context above. If the answe
     except Exception as e:
         return f"Error generating answer: {str(e)}"
 
+def chat_with_gpt(message: str, conversation_history: list = None) -> str:
+    """
+    Chat with GPT like ChatGPT - normal conversation without document context.
+    """
+    client = get_openai_client()
+    
+    if not client:
+        return "OpenAI API is not configured. Please add your OPENAI_API_KEY to use chat features."
+    
+    try:
+        # Build conversation messages
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful, friendly, and knowledgeable AI assistant. You can help with a wide variety of tasks including answering questions, providing explanations, helping with coding, writing, analysis, and general conversation. Be concise but thorough in your responses."
+            }
+        ]
+        
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        
+        # Add current message
+        messages.append({
+            "role": "user",
+            "content": message
+        })
+        
+        # Get response from GPT
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content.strip()
+    
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+def generate_image(prompt: str, size: str = "1024x1024", quality: str = "standard") -> str:
+    """
+    Generate an image using OpenAI's DALL-E API.
+    Returns the image URL.
+    """
+    client = get_openai_client()
+    
+    if not client:
+        raise Exception("OpenAI API is not configured. Please add your OPENAI_API_KEY to use image generation.")
+    
+    try:
+        # Generate image using DALL-E
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size=size,
+            quality=quality,
+            n=1,
+        )
+        
+        # Return the image URL
+        return response.data[0].url
+    
+    except Exception as e:
+        raise Exception(f"Error generating image: {str(e)}")
+
+def grammar_check(text: str) -> dict:
+    """
+    Check and correct grammar in the given text using OpenAI API.
+    Returns a dictionary with corrected text and explanations.
+    """
+    client = get_openai_client()
+    
+    if not client:
+        raise Exception("OpenAI API is not configured. Please add your OPENAI_API_KEY to use grammar checking.")
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert grammar checker and proofreader. Your task is to:\n1. Correct any grammar, spelling, punctuation, and tense errors in the provided text\n2. Maintain the original meaning and style\n3. Provide a brief explanation of the corrections made\n4. If the text is already correct, return it unchanged\n\nRespond in JSON format with:\n- 'corrected_text': the corrected version of the text\n- 'corrections': a list of corrections made, each with 'original', 'corrected', and 'explanation'\n- 'has_errors': boolean indicating if any corrections were made"
+                },
+                {
+                    "role": "user",
+                    "content": f"Please check and correct the grammar in the following text:\n\n{text}"
+                }
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1000,
+            temperature=0.3
+        )
+        
+        result = json.loads(response.choices[0].message.content.strip())
+        
+        # Ensure all required fields are present
+        return {
+            "corrected_text": result.get("corrected_text", text),
+            "corrections": result.get("corrections", []),
+            "has_errors": result.get("has_errors", False)
+        }
+    
+    except json.JSONDecodeError:
+        # Fallback if JSON parsing fails
+        corrected_text = response.choices[0].message.content.strip()
+        return {
+            "corrected_text": corrected_text,
+            "corrections": [],
+            "has_errors": False
+        }
+    except Exception as e:
+        raise Exception(f"Error checking grammar: {str(e)}")
+
 def simple_summarize(text: str, max_length: int = 200) -> str:
     """
     Simple extractive summarization as fallback.

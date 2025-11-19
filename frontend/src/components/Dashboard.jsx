@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiRequest, uploadFile, removeToken } from '../utils/auth'
+import { apiRequest, uploadFile, removeToken, getToken } from '../utils/auth'
+import { useLanguage } from '../contexts/LanguageContext'
+import { getTranslation } from '../utils/translations'
+import LanguageSwitcher from './LanguageSwitcher'
 import './Dashboard.css'
 
 function Dashboard({ setIsAuthenticated }) {
@@ -14,6 +17,12 @@ function Dashboard({ setIsAuthenticated }) {
   const [queryResult, setQueryResult] = useState(null)
   const [querying, setQuerying] = useState(false)
   const [selectedDocumentId, setSelectedDocumentId] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportFormat, setExportFormat] = useState('pdf')
+  const [selectedDocsForExport, setSelectedDocsForExport] = useState([])
+  const { language } = useLanguage()
+  const t = (key) => getTranslation(key, language)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -59,7 +68,7 @@ function Dashboard({ setIsAuthenticated }) {
       await loadDocuments()
       setError('')
     } catch (err) {
-      setError('Upload failed: ' + err.message)
+      setError(t('uploadFailed') + ': ' + err.message)
     } finally {
       setUploading(false)
       e.target.value = '' // Reset file input
@@ -76,7 +85,7 @@ function Dashboard({ setIsAuthenticated }) {
       })
       await loadDocuments()
     } catch (err) {
-      setError('Summarization failed: ' + err.message)
+      setError(t('summaryFailed') + ': ' + err.message)
     } finally {
       setSummarizing({ ...summarizing, [documentId]: false })
     }
@@ -102,15 +111,101 @@ function Dashboard({ setIsAuthenticated }) {
       setQueryResult(result)
       setQuery('')
     } catch (err) {
-      const errorMessage = err.message || 'Query failed'
+      const errorMessage = err.message || t('queryFailed')
       if (errorMessage.includes('No document chunks available') || errorMessage.includes('chunks')) {
         setError('Your documents need to be re-uploaded to enable RAG queries. Documents uploaded before the RAG feature was added don\'t have the required data. Please upload your documents again.')
       } else {
-        setError('Query failed: ' + errorMessage)
+        setError(t('queryFailed') + ': ' + errorMessage)
       }
     } finally {
       setQuerying(false)
     }
+  }
+
+  const handleDelete = async (documentId) => {
+    if (!window.confirm(t('confirmDelete'))) {
+      return
+    }
+
+    try {
+      await apiRequest(`/documents/${documentId}`, {
+        method: 'DELETE',
+      })
+      await loadDocuments()
+      setError('')
+    } catch (err) {
+      setError(t('deleteFailed') + ': ' + err.message)
+    }
+  }
+
+  const handleExport = async () => {
+    if (documents.length === 0) {
+      setError(t('noDocumentsYet'))
+      return
+    }
+
+    setExporting(true)
+    setError('')
+
+    try {
+      const token = getToken()
+      const exportData = {
+        format: exportFormat,
+        document_ids: selectedDocsForExport.length > 0 ? selectedDocsForExport : null
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(exportData)
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Export failed' }))
+        throw new Error(error.detail || 'Export failed')
+      }
+
+      // Get the file blob
+      const blob = await response.blob()
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `summaries_${new Date().toISOString().split('T')[0]}.${exportFormat}`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      setShowExportModal(false)
+      setSelectedDocsForExport([])
+    } catch (err) {
+      setError(t('exportFailed') + ': ' + err.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const toggleDocumentForExport = (docId) => {
+    setSelectedDocsForExport(prev => 
+      prev.includes(docId) 
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    )
   }
 
   const handleLogout = () => {
@@ -127,11 +222,21 @@ function Dashboard({ setIsAuthenticated }) {
     <div className="dashboard">
       <header className="dashboard-header">
         <div className="header-content">
-          <h1>Document Summarizer</h1>
+          <h1>{t('documentSummarizer')}</h1>
           <div className="header-actions">
-            {user && <span className="user-name">Welcome, {user.full_name || user.email}</span>}
+            <LanguageSwitcher />
+            <button onClick={() => navigate('/chat')} className="btn-nav">
+              💬 {t('chatWithGPT')}
+            </button>
+            <button onClick={() => navigate('/image-generator')} className="btn-nav">
+              🎨 {t('aiImageGenerator')}
+            </button>
+            <button onClick={() => navigate('/grammar-checker')} className="btn-nav">
+              ✏️ {t('grammarChecker')}
+            </button>
+            {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
             <button onClick={handleLogout} className="btn-logout">
-              Logout
+              {t('logout')}
             </button>
           </div>
         </div>
@@ -140,17 +245,17 @@ function Dashboard({ setIsAuthenticated }) {
       <main className="dashboard-main">
         <div className="upload-section">
           <div className="upload-card">
-            <h2>Upload Document</h2>
-            <p className="upload-description">Upload PDF or TXT files to get AI-powered summaries</p>
+            <h2>{t('uploadDocument')}</h2>
+            <p className="upload-description">{t('uploadDescription')}</p>
             <label className="upload-button">
               <input
                 type="file"
-                accept=".pdf,.txt"
+                accept=".pdf,.txt,.docx,.doc,.xlsx,.xls,.csv,.md,.markdown,.html,.htm,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp"
                 onChange={handleFileUpload}
                 disabled={uploading}
                 style={{ display: 'none' }}
               />
-              {uploading ? 'Uploading...' : 'Choose File'}
+              {uploading ? t('uploading') : t('chooseFile')}
             </label>
           </div>
         </div>
@@ -161,18 +266,18 @@ function Dashboard({ setIsAuthenticated }) {
         {documents.length > 0 && (
           <div className="query-section">
             <div className="query-card">
-              <h2>Ask Questions About Your Documents</h2>
-              <p className="query-description">Query your documents using AI-powered RAG (Retrieval-Augmented Generation)</p>
+              <h2>{t('askQuestions')}</h2>
+              <p className="query-description">{t('queryDescription')}</p>
               
               <div className="document-selector">
                 <label>
-                  Search in:
+                  {t('searchIn')}:
                   <select 
                     value={selectedDocumentId || ''} 
                     onChange={(e) => setSelectedDocumentId(e.target.value ? parseInt(e.target.value) : null)}
                     className="document-select"
                   >
-                    <option value="">All Documents</option>
+                    <option value="">{t('allDocuments')}</option>
                     {documents.map((doc) => (
                       <option key={doc.id} value={doc.id}>
                         {doc.filename}
@@ -187,20 +292,20 @@ function Dashboard({ setIsAuthenticated }) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ask a question about your documents..."
+                  placeholder={t('askQuestion')}
                   className="query-input"
                   disabled={querying}
                 />
                 <button type="submit" className="btn-query" disabled={querying || !query.trim()}>
-                  {querying ? 'Searching...' : 'Ask'}
+                  {querying ? t('searching') : t('ask')}
                 </button>
               </form>
 
               {queryResult && (
                 <div className="query-result">
                   <div className="result-header">
-                    <h4>Answer:</h4>
-                    <span className="result-source">From: {queryResult.filename}</span>
+                    <h4>{t('answer')}:</h4>
+                    <span className="result-source">{t('from')}: {queryResult.filename}</span>
                   </div>
                   <div className="result-answer">{queryResult.answer}</div>
                 </div>
@@ -210,12 +315,25 @@ function Dashboard({ setIsAuthenticated }) {
         )}
 
         <div className="documents-section">
-          <h2>Your Documents</h2>
+          <div className="documents-header">
+            <h2>{t('yourDocuments')}</h2>
+            {documents.length > 0 && (
+              <button 
+                onClick={() => setShowExportModal(true)} 
+                className="btn-export"
+                title={t('exportSummaries')}
+              >
+                📥 {t('exportSummaries')}
+              </button>
+            )}
+          </div>
           {loading ? (
-            <div className="loading">Loading documents...</div>
+            <div className="loading">
+              <p>{t('loadingDocuments')}</p>
+            </div>
           ) : documents.length === 0 ? (
             <div className="empty-state">
-              <p>No documents yet. Upload a file to get started!</p>
+              <p>{t('noDocumentsYet')}</p>
             </div>
           ) : (
             <div className="documents-grid">
@@ -223,22 +341,31 @@ function Dashboard({ setIsAuthenticated }) {
                 <div key={doc.id} className="document-card">
                   <div className="document-header">
                     <h3>{doc.filename}</h3>
+                    <div className="document-header-right">
                     <span className="document-date">{formatDate(doc.uploaded_at)}</span>
+                    <button
+                      onClick={() => handleDelete(doc.id)}
+                      className="btn-delete"
+                      title={t('delete')}
+                    >
+                      🗑️
+                    </button>
                   </div>
+                </div>
                   {doc.summary ? (
                     <div className="summary-section">
-                      <h4>Summary:</h4>
+                      <h4>{t('summary')}:</h4>
                       <p className="summary-text">{doc.summary}</p>
                     </div>
                   ) : (
                     <div className="no-summary">
-                      <p>No summary yet</p>
+                      <p>{t('noSummaryYet')}</p>
                       <button
                         onClick={() => handleSummarize(doc.id)}
                         disabled={summarizing[doc.id]}
                         className="btn-summarize"
                       >
-                        {summarizing[doc.id] ? 'Summarizing...' : 'Generate Summary'}
+                        {summarizing[doc.id] ? t('summarizing') : t('generateSummary')}
                       </button>
                     </div>
                   )}
@@ -247,6 +374,102 @@ function Dashboard({ setIsAuthenticated }) {
             </div>
           )}
         </div>
+
+        {/* Export Modal */}
+        {showExportModal && (
+          <div className="modal-overlay" onClick={() => !exporting && setShowExportModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{t('exportSummaries')}</h3>
+                <button 
+                  className="modal-close" 
+                  onClick={() => setShowExportModal(false)}
+                  disabled={exporting}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>{t('exportFormat')}</label>
+                  <select 
+                    value={exportFormat} 
+                    onChange={(e) => setExportFormat(e.target.value)}
+                    className="export-select"
+                    disabled={exporting}
+                  >
+                    <option value="pdf">{t('pdfDocument')}</option>
+                    <option value="txt">{t('textFile')}</option>
+                    <option value="json">{t('jsonData')}</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>{t('exportOptions')}</label>
+                  <div className="export-options">
+                    <label className="export-option-item">
+                      <input
+                        type="radio"
+                        name="exportScope"
+                        checked={selectedDocsForExport.length === 0}
+                        onChange={() => setSelectedDocsForExport([])}
+                        disabled={exporting}
+                      />
+                      <span>{t('exportAll')} ({documents.length})</span>
+                    </label>
+                    <label className="export-option-item">
+                      <input
+                        type="radio"
+                        name="exportScope"
+                        checked={selectedDocsForExport.length > 0}
+                        onChange={() => setSelectedDocsForExport(documents.map(d => d.id))}
+                        disabled={exporting}
+                      />
+                      <span>{t('selectSpecific')}</span>
+                    </label>
+                  </div>
+                </div>
+
+                {selectedDocsForExport.length > 0 && (
+                  <div className="form-group">
+                    <label>{t('selectedDocuments')} ({selectedDocsForExport.length} {t('selected')})</label>
+                    <div className="export-docs-list">
+                      {documents.map(doc => (
+                        <label key={doc.id} className="export-doc-item">
+                          <input
+                            type="checkbox"
+                            checked={selectedDocsForExport.includes(doc.id)}
+                            onChange={() => toggleDocumentForExport(doc.id)}
+                            disabled={exporting}
+                          />
+                          <span>{doc.filename}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button 
+                  className="btn-cancel" 
+                  onClick={() => setShowExportModal(false)}
+                  disabled={exporting}
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  className="btn-export-confirm" 
+                  onClick={handleExport}
+                  disabled={exporting || documents.length === 0}
+                >
+                  {exporting ? t('exporting') : t('export')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

@@ -3,6 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login'
 import Register from './components/Register'
 import Dashboard from './components/Dashboard'
+import Chat from './components/Chat'
+import ImageGenerator from './components/ImageGenerator'
+import GrammarChecker from './components/GrammarChecker'
 import { getToken } from './utils/auth'
 
 function App() {
@@ -33,6 +36,18 @@ function App() {
         <Route 
           path="/" 
           element={isAuthenticated ? <Dashboard setIsAuthenticated={setIsAuthenticated} /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/chat" 
+          element={isAuthenticated ? <Chat setIsAuthenticated={setIsAuthenticated} /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/image-generator" 
+          element={isAuthenticated ? <ImageGenerator setIsAuthenticated={setIsAuthenticated} /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/grammar-checker" 
+          element={isAuthenticated ? <GrammarChecker setIsAuthenticated={setIsAuthenticated} /> : <Navigate to="/login" />} 
         />
       </Routes>
     </Router>

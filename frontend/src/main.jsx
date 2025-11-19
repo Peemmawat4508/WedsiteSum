@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { GoogleOAuthProvider } from '@react-oauth/google'
+import { LanguageProvider } from './contexts/LanguageContext'
 import App from './App'
 import './index.css'
 
@@ -45,13 +46,17 @@ if (!rootElement) {
 try {
   const root = ReactDOM.createRoot(rootElement)
   
-  // Wrap with GoogleOAuthProvider only if client ID exists
-  const appContent = GOOGLE_CLIENT_ID ? (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <App />
-    </GoogleOAuthProvider>
-  ) : (
-    <App />
+  // Wrap with providers
+  const appContent = (
+    <LanguageProvider>
+      {GOOGLE_CLIENT_ID ? (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          <App />
+        </GoogleOAuthProvider>
+      ) : (
+        <App />
+      )}
+    </LanguageProvider>
   )
   
   root.render(
