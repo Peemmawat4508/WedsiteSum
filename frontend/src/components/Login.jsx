@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { apiRequest, setToken } from '../utils/auth'
+import { apiRequest, setToken, API_URL } from '../utils/auth'
 import GoogleAuthButton from './GoogleAuthButton'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getTranslation } from '../utils/translations'
@@ -26,7 +26,6 @@ function Login({ setIsAuthenticated }) {
       formData.append('username', email)
       formData.append('password', password)
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const response = await fetch(`${API_URL}/token`, {
         method: 'POST',
         body: formData,
