@@ -8,7 +8,16 @@ from sqlalchemy.orm import Session
 import os
 
 from database import SessionLocal
+from database import SessionLocal
 from models import User
+
+# Fallback in-memory user for when DB fails
+class MockUser:
+    id = 1
+    email = "guest@example.com"
+    full_name = "Guest User (Offline)"
+    is_active = True
+    hashed_password = ""
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
@@ -46,19 +55,30 @@ async def get_current_user(db: Session = Depends(get_db)):
     Bypasses JWT validation entirely.
     """
     guest_email = "guest@example.com"
-    user = db.query(User).filter(User.email == guest_email).first()
-    
-    if not user:
-        # Create guest user if not exists
-        user = User(
-            email=guest_email,
-            hashed_password=get_password_hash("guest_password"),
-            full_name="Guest User",
-            is_active=True
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    
-    return user
+    try:
+        user = db.query(User).filter(User.email == guest_email).first()
+        
+        if not user:
+            # Try to create guest user if it doesn't exist
+            # This might fail if DB is read-only or locked
+            try:
+                user = User(
+                    email=guest_email,
+                    hashed_password=get_password_hash("guest_password"),
+                    full_name="Guest User",
+                    is_active=True
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+            except Exception as e:
+                print(f"Failed to create guest user in DB: {e}")
+                # Fallback to returning a mock user so the app doesn't crash
+                return MockUser()
+        
+        return user
+    except Exception as e:
+        print(f"Database error in get_current_user: {e}")
+        # Ultimate fallback for 500 errors
+        return MockUser()
 

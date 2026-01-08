@@ -55,6 +55,12 @@ function Dashboard({ setIsAuthenticated }) {
     const file = e.target.files[0]
     if (!file) return
 
+    // Check file size (Vercel limit 4.5MB)
+    if (file.size > 4.5 * 1024 * 1024) {
+      setError(t('fileTooLarge') || 'File too large. Maximum size is 4.5MB.')
+      return
+    }
+
     if (!file.name.match(/\.(pdf|txt)$/i)) {
       setError('Please upload a PDF or TXT file')
       return

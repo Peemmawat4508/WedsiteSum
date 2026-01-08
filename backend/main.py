@@ -30,10 +30,36 @@ app = FastAPI(title="Document Summarizer API")
 @app.on_event("startup")
 async def startup_event():
     try:
+        # Create tables
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully")
+        
+        # Create Guest User on startup to ensure it exists
+        db = SessionLocal()
+        try:
+            guest_email = "guest@example.com"
+            user = db.query(User).filter(User.email == guest_email).first()
+            if not user:
+                print("Creating Guest User...")
+                # We need to import get_password_hash here or move it slightly in file
+                # Importing locally to avoid circular dependencies if any
+                from auth import get_password_hash 
+                user = User(
+                    email=guest_email,
+                    hashed_password=get_password_hash("guest_password"),
+                    full_name="Guest User",
+                    is_active=True
+                )
+                db.add(user)
+                db.commit()
+                print("Guest User created successfully")
+        except Exception as e:
+            print(f"Error creating guest user: {e}")
+        finally:
+            db.close()
+            
     except Exception as e:
-        print(f"Error creating tables: {e}")
+        print(f"Error in startup_event: {e}")
 
 @app.get("/")
 async def root():
