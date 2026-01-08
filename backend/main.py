@@ -24,10 +24,20 @@ from schemas import UserCreate, UserResponse, DocumentResponse, SummaryResponse,
 from auth import get_current_user, create_access_token, verify_password, get_password_hash
 from summarizer import summarize_text, create_chunks, create_embeddings, query_documents, generate_rag_answer, chat_with_gpt, generate_image, grammar_check
 
-# Create tables
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Document Summarizer API")
+
+# Setup startup event for table creation
+@app.on_event("startup")
+async def startup_event():
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Tables created successfully")
+    except Exception as e:
+        print(f"Error creating tables: {e}")
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Backend is running"}
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
