@@ -34,15 +34,13 @@ async def startup_event():
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully")
         
-        # Create Guest User on startup to ensure it exists
+        # Create Guest User on startup
         db = SessionLocal()
         try:
             guest_email = "guest@example.com"
             user = db.query(User).filter(User.email == guest_email).first()
             if not user:
                 print("Creating Guest User...")
-                # We need to import get_password_hash here or move it slightly in file
-                # Importing locally to avoid circular dependencies if any
                 from auth import get_password_hash 
                 user = User(
                     email=guest_email,
@@ -60,6 +58,51 @@ async def startup_event():
             
     except Exception as e:
         print(f"Error in startup_event: {e}")
+
+# Global Exception Handler for detailed error reporting
+from fastapi.responses import JSONResponse
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    error_msg = f"Global Error: {str(exc)}\n{traceback.format_exc()}"
+    print(error_msg)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": str(traceback.format_exc())}
+    )
+
+@app.get("/debug")
+async def debug_endpoint():
+    """Diagnostic endpoint to check environment"""
+    import shutil
+    
+    debug_info = {
+        "status": "online",
+        "timestamp": datetime.utcnow().isoformat(),
+        "env_vars": {
+            "VERCEL": os.environ.get("VERCEL"),
+            "VITE_GOOGLE_CLIENT_ID": "Set" if os.environ.get("VITE_GOOGLE_CLIENT_ID") else "Not Set",
+            "OPENAI_API_KEY": "Set" if os.environ.get("OPENAI_API_KEY") else "Not Set",
+        },
+        "filesystem": {
+            "tmp_exists": os.path.exists("/tmp"),
+            "tmp_writable": os.access("/tmp", os.W_OK),
+            "db_path": str(engine.url),
+            "db_file_exists": os.path.exists("/tmp/documents.db") if "sqlite" in str(engine.url) else "N/A"
+        }
+    }
+    
+    # Check DB connection
+    try:
+        db = SessionLocal()
+        user_count = db.query(User).count()
+        debug_info["database"] = {"status": "connected", "user_count": user_count}
+        db.close()
+    except Exception as e:
+        debug_info["database"] = {"status": "error", "error": str(e)}
+        
+    return debug_info
 
 @app.get("/")
 async def root():
