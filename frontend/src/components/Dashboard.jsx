@@ -55,9 +55,9 @@ function Dashboard({ setIsAuthenticated }) {
     const file = e.target.files[0]
     if (!file) return
 
-    // Check file size (Vercel limit 4.5MB)
-    if (file.size > 4.5 * 1024 * 1024) {
-      setError(t('fileTooLarge') || 'File too large. Maximum size is 4.5MB.')
+    // Check file size (Vercel limit 4.5MB, limit to 4MB for safety)
+    if (file.size > 4.0 * 1024 * 1024) {
+      setError(t('fileTooLarge') || 'File too large. Maximum size is 4MB.')
       return
     }
 
