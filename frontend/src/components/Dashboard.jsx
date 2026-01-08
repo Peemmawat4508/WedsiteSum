@@ -170,7 +170,7 @@ function Dashboard({ setIsAuthenticated }) {
 
       // Get the file blob
       const blob = await response.blob()
-      
+
       // Get filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get('Content-Disposition')
       let filename = `summaries_${new Date().toISOString().split('T')[0]}.${exportFormat}`
@@ -201,8 +201,8 @@ function Dashboard({ setIsAuthenticated }) {
   }
 
   const toggleDocumentForExport = (docId) => {
-    setSelectedDocsForExport(prev => 
-      prev.includes(docId) 
+    setSelectedDocsForExport(prev =>
+      prev.includes(docId)
         ? prev.filter(id => id !== docId)
         : [...prev, docId]
     )
@@ -235,9 +235,6 @@ function Dashboard({ setIsAuthenticated }) {
               ✏️ {t('grammarChecker')}
             </button>
             {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
-            <button onClick={handleLogout} className="btn-logout">
-              {t('logout')}
-            </button>
           </div>
         </div>
       </header>
@@ -268,12 +265,12 @@ function Dashboard({ setIsAuthenticated }) {
             <div className="query-card">
               <h2>{t('askQuestions')}</h2>
               <p className="query-description">{t('queryDescription')}</p>
-              
+
               <div className="document-selector">
                 <label>
                   {t('searchIn')}:
-                  <select 
-                    value={selectedDocumentId || ''} 
+                  <select
+                    value={selectedDocumentId || ''}
                     onChange={(e) => setSelectedDocumentId(e.target.value ? parseInt(e.target.value) : null)}
                     className="document-select"
                   >
@@ -318,8 +315,8 @@ function Dashboard({ setIsAuthenticated }) {
           <div className="documents-header">
             <h2>{t('yourDocuments')}</h2>
             {documents.length > 0 && (
-              <button 
-                onClick={() => setShowExportModal(true)} 
+              <button
+                onClick={() => setShowExportModal(true)}
                 className="btn-export"
                 title={t('exportSummaries')}
               >
@@ -342,16 +339,16 @@ function Dashboard({ setIsAuthenticated }) {
                   <div className="document-header">
                     <h3>{doc.filename}</h3>
                     <div className="document-header-right">
-                    <span className="document-date">{formatDate(doc.uploaded_at)}</span>
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="btn-delete"
-                      title={t('delete')}
-                    >
-                      🗑️
-                    </button>
+                      <span className="document-date">{formatDate(doc.uploaded_at)}</span>
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="btn-delete"
+                        title={t('delete')}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
-                </div>
                   {doc.summary ? (
                     <div className="summary-section">
                       <h4>{t('summary')}:</h4>
@@ -381,20 +378,20 @@ function Dashboard({ setIsAuthenticated }) {
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>{t('exportSummaries')}</h3>
-                <button 
-                  className="modal-close" 
+                <button
+                  className="modal-close"
                   onClick={() => setShowExportModal(false)}
                   disabled={exporting}
                 >
                   ×
                 </button>
               </div>
-              
+
               <div className="modal-body">
                 <div className="form-group">
                   <label>{t('exportFormat')}</label>
-                  <select 
-                    value={exportFormat} 
+                  <select
+                    value={exportFormat}
                     onChange={(e) => setExportFormat(e.target.value)}
                     className="export-select"
                     disabled={exporting}
@@ -452,15 +449,15 @@ function Dashboard({ setIsAuthenticated }) {
               </div>
 
               <div className="modal-footer">
-                <button 
-                  className="btn-cancel" 
+                <button
+                  className="btn-cancel"
                   onClick={() => setShowExportModal(false)}
                   disabled={exporting}
                 >
                   {t('cancel')}
                 </button>
-                <button 
-                  className="btn-export-confirm" 
+                <button
+                  className="btn-export-confirm"
                   onClick={handleExport}
                   disabled={exporting || documents.length === 0}
                 >

@@ -40,23 +40,25 @@ def get_db():
     finally:
         db.close()
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+async def get_current_user(db: Session = Depends(get_db)):
+    """
+    Guest Mode: Always return the guest user.
+    Bypasses JWT validation entirely.
+    """
+    guest_email = "guest@example.com"
+    user = db.query(User).filter(User.email == guest_email).first()
     
-    user = db.query(User).filter(User.email == email).first()
-    if user is None:
-        raise credentials_exception
+    if not user:
+        # Create guest user if not exists
+        user = User(
+            email=guest_email,
+            hashed_password=get_password_hash("guest_password"),
+            full_name="Guest User",
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     
     return user
 
