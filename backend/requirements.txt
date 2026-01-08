@@ -1,10 +1,10 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sqlalchemy==2.0.23
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+sqlalchemy>=2.0.25
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-pydantic[email]==2.5.0
+pydantic[email]>=2.8.0
 PyPDF2==3.0.1
 pdfplumber==0.11.7
 openai>=1.0.0
@@ -16,9 +16,13 @@ mangum==0.17.0
 reportlab>=4.0.0
 python-docx==1.1.0
 openpyxl==3.1.2
-Pillow==10.1.0
+Pillow>=10.2.0
 pytesseract==0.3.10
-pandas==2.1.3
+pandas>=2.2.0
 markdown==3.5.1
 beautifulsoup4==4.12.2
+pytest>=7.4.0
+httpx>=0.25.0
+bcrypt==3.2.2
+psycopg2-binary>=2.9.9
 
