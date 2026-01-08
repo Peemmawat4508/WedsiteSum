@@ -6,7 +6,7 @@ import os
 # Database URL - using SQLite for simplicity
 # On Vercel, we must use /tmp directory for SQLite if not using a real DB
 if os.getenv("VERCEL"):
-    default_db_url = "sqlite:///tmp/documents.db"
+    default_db_url = "sqlite:////tmp/documents.db"
 else:
     default_db_url = "sqlite:///./documents.db"
 
