@@ -12,12 +12,14 @@ from database import SessionLocal
 from models import User
 
 # Fallback in-memory user for when DB fails
+# Fallback in-memory user for when DB fails
 class MockUser:
-    id = 1
-    email = "guest@example.com"
-    full_name = "Guest User (Offline)"
-    is_active = True
-    hashed_password = ""
+    def __init__(self):
+        self.id = 1
+        self.email = "guest@example.com"
+        self.full_name = "Guest User (Offline)"
+        self.is_active = True
+        self.hashed_password = ""
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"

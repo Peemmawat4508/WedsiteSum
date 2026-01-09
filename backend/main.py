@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -118,6 +118,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware to check content size
+@app.middleware("http")
+async def validate_content_length(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        content_length = int(content_length)
+        if content_length > 4.5 * 1024 * 1024:  # 4.5MB Vercel limit
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "File too large. Maximum size is 4.5MB."}
+            )
+    return await call_next(request)
+
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
@@ -128,11 +141,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Dependency to get DB session
 def get_db():
-    db = SessionLocal()
     try:
-        yield db
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error in get_db: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is currently unavailable"
+        )
 
 # Extract text from PDF - improved for Thai characters
 def extract_text_from_pdf(file_content: bytes) -> str:
