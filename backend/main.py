@@ -382,17 +382,31 @@ async def summarize_document(
 
 @app.get("/documents", response_model=list[DocumentResponse])
 async def get_documents(db: Session = Depends(get_db)):
-    documents = db.query(Document).order_by(Document.uploaded_at.desc()).all()
-    
-    return [
-        DocumentResponse(
-            id=doc.id,
-            filename=doc.filename,
-            uploaded_at=doc.uploaded_at,
-            summary=doc.summary
-        )
-        for doc in documents
-    ]
+    try:
+        # Ensure tables exist (helper for Vercel cold starts)
+        # In production this is usually redundant but crucial for sqlite in /tmp
+        # if the startup event missed it.
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        if not inspector.has_table("documents"):
+             print("Table 'documents' not found, creating tables...")
+             Base.metadata.create_all(bind=engine)
+
+        documents = db.query(Document).order_by(Document.uploaded_at.desc()).all()
+        
+        return [
+            DocumentResponse(
+                id=doc.id,
+                filename=doc.filename,
+                uploaded_at=doc.uploaded_at,
+                summary=doc.summary
+            )
+            for doc in documents
+        ]
+    except Exception as e:
+        print(f"Error getting documents: {e}")
+        # Return empty list instead of 500 error if DB is wonky
+        return []
 
 @app.delete("/documents/{document_id}")
 async def delete_document(
