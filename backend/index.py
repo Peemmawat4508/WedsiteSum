@@ -1,7 +1,10 @@
 import sys
 import os
 
-# No sys.path modification needed as we are in the same directory as main.py
+# Ensure the current directory (backend/) is in sys.path so we can import main
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
 
 from mangum import Mangum
 try:
