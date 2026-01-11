@@ -20,6 +20,8 @@ else:
     default_db_url = "sqlite:///./documents.db"
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", default_db_url)
+if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Connect args needed for SQLite
 connect_args = {"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
