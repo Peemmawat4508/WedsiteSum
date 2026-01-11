@@ -13,5 +13,5 @@ from main import app
 
 # Wrap FastAPI app with Mangum for AWS Lambda/Vercel compatibility
 # Vercel expects the handler to be named 'handler'
-handler = Mangum(app, lifespan="off")
+handler = Mangum(app, lifespan="auto")
 
