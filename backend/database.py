@@ -4,18 +4,10 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Database URL - using SQLite for simplicity
-# On Vercel, we attempt to use /tmp, but fall back to in-memory if needed
-if os.getenv("VERCEL"):
-    # Try to ensure /tmp is writable
-    try:
-        test_file = "/tmp/test_write"
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
-        default_db_url = "sqlite:////tmp/documents.db"
-    except Exception as e:
-        print(f"Warning: /tmp not writable ({e}), falling back to in-memory database.")
-        default_db_url = "sqlite:///:memory:"
+# On Vercel (or any read-only env), we must use /tmp
+if os.getenv("VERCEL") or not os.access(".", os.W_OK):
+    print("Environment is read-only or VERCEL detected. Using /tmp for SQLite.")
+    default_db_url = "sqlite:////tmp/documents.db"
 else:
     default_db_url = "sqlite:///./documents.db"
 
