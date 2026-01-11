@@ -1,0 +1,22 @@
+INFO:     Will watch for changes in these directories: ['/Users/peemmawat/.gemini/antigravity/scratch/WedsiteSum/backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [18390] using WatchFiles
+INFO:     Started server process [18460]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialized with URL: sqlite:///./documents.db
+Tables created successfully
+INFO:     127.0.0.1:52134 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52136 - "POST /upload HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "OPTIONS /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52260 - "OPTIONS /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "GET /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "GET /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "GET /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "GET /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52259 - "OPTIONS /documents/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52260 - "DELETE /documents/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52260 - "GET /documents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52262 - "OPTIONS /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52262 - "POST /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52264 - "POST /chat HTTP/1.1" 200 OK

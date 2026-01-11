@@ -1,20 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str
-
-class UserResponse(BaseModel):
-    id: int
-    email: str
-    full_name: Optional[str]
-    is_active: bool
-    
-    class Config:
-        from_attributes = True
 
 class DocumentResponse(BaseModel):
     id: int
@@ -32,7 +18,7 @@ class SummaryResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    document_id: Optional[int] = None  # If None, search all user documents
+    document_id: Optional[int] = None  # If None, search all documents
 
 class QueryResponse(BaseModel):
     answer: str
@@ -78,4 +64,3 @@ class GrammarCheckResponse(BaseModel):
     corrected_text: str
     corrections: list[GrammarCorrection]
     has_errors: bool
-

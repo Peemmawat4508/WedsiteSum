@@ -1,36 +1,22 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiRequest, removeToken } from '../utils/auth'
+import { apiRequest } from '../utils/auth'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getTranslation } from '../utils/translations'
 import LanguageSwitcher from './LanguageSwitcher'
 import './ImageGenerator.css'
 
-function ImageGenerator({ setIsAuthenticated }) {
+function ImageGenerator() {
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState('1024x1024')
   const [quality, setQuality] = useState('standard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [generatedImage, setGeneratedImage] = useState(null)
-  const [user, setUser] = useState(null)
   const [history, setHistory] = useState([])
   const { language } = useLanguage()
   const t = (key) => getTranslation(key, language)
   const navigate = useNavigate()
-
-  React.useEffect(() => {
-    loadUser()
-  }, [])
-
-  const loadUser = async () => {
-    try {
-      const userData = await apiRequest('/me')
-      setUser(userData)
-    } catch (err) {
-      setError('Failed to load user data')
-    }
-  }
 
   const handleGenerate = async (e) => {
     e.preventDefault()
@@ -90,12 +76,6 @@ function ImageGenerator({ setIsAuthenticated }) {
       })
   }
 
-  const handleLogout = () => {
-    removeToken()
-    setIsAuthenticated(false)
-    navigate('/login')
-  }
-
   return (
     <div className="image-generator">
       <header className="image-generator-header">
@@ -111,10 +91,6 @@ function ImageGenerator({ setIsAuthenticated }) {
             </button>
             <button onClick={() => navigate('/grammar-checker')} className="btn-nav">
               ✏️ {t('grammarChecker')}
-            </button>
-            {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
-            <button onClick={handleLogout} className="btn-logout">
-              {t('logout')}
             </button>
           </div>
         </div>

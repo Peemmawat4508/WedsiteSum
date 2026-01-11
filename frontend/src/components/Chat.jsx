@@ -1,25 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiRequest, removeToken } from '../utils/auth'
+import { apiRequest } from '../utils/auth'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getTranslation } from '../utils/translations'
 import LanguageSwitcher from './LanguageSwitcher'
 import './Chat.css'
 
-function Chat({ setIsAuthenticated }) {
+function Chat() {
   const [messages, setMessages] = useState([])
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [user, setUser] = useState(null)
   const messagesEndRef = useRef(null)
   const { language } = useLanguage()
   const t = (key) => getTranslation(key, language)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    loadUser()
-  }, [])
 
   useEffect(() => {
     scrollToBottom()
@@ -27,15 +22,6 @@ function Chat({ setIsAuthenticated }) {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const loadUser = async () => {
-    try {
-      const userData = await apiRequest('/me')
-      setUser(userData)
-    } catch (err) {
-      setError('Failed to load user data')
-    }
   }
 
   const handleSend = async (e) => {
@@ -85,12 +71,6 @@ function Chat({ setIsAuthenticated }) {
     }
   }
 
-  const handleLogout = () => {
-    removeToken()
-    setIsAuthenticated(false)
-    navigate('/login')
-  }
-
   return (
     <div className="chat-container">
       <header className="chat-header">
@@ -106,10 +86,6 @@ function Chat({ setIsAuthenticated }) {
             </button>
             <button onClick={() => navigate('/grammar-checker')} className="btn-nav">
               ✏️ {t('grammarChecker')}
-            </button>
-            {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
-            <button onClick={handleLogout} className="btn-logout">
-              {t('logout')}
             </button>
           </div>
         </div>

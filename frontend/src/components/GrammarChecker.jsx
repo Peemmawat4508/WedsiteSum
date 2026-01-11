@@ -1,35 +1,21 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiRequest, removeToken } from '../utils/auth'
+import { apiRequest } from '../utils/auth'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getTranslation } from '../utils/translations'
 import LanguageSwitcher from './LanguageSwitcher'
 import './GrammarChecker.css'
 
-function GrammarChecker({ setIsAuthenticated }) {
+function GrammarChecker() {
   const [text, setText] = useState('')
   const [correctedText, setCorrectedText] = useState('')
   const [corrections, setCorrections] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [user, setUser] = useState(null)
   const [hasErrors, setHasErrors] = useState(false)
   const { language } = useLanguage()
   const t = (key) => getTranslation(key, language)
   const navigate = useNavigate()
-
-  React.useEffect(() => {
-    loadUser()
-  }, [])
-
-  const loadUser = async () => {
-    try {
-      const userData = await apiRequest('/me')
-      setUser(userData)
-    } catch (err) {
-      setError('Failed to load user data')
-    }
-  }
 
   const handleCheck = async (e) => {
     e.preventDefault()
@@ -82,12 +68,6 @@ function GrammarChecker({ setIsAuthenticated }) {
     setHasErrors(false)
   }
 
-  const handleLogout = () => {
-    removeToken()
-    setIsAuthenticated(false)
-    navigate('/login')
-  }
-
   return (
     <div className="grammar-checker">
       <header className="grammar-checker-header">
@@ -103,10 +83,6 @@ function GrammarChecker({ setIsAuthenticated }) {
             </button>
             <button onClick={() => navigate('/image-generator')} className="btn-nav">
               🎨 {t('aiImageGenerator')}
-            </button>
-            {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
-            <button onClick={handleLogout} className="btn-logout">
-              {t('logout')}
             </button>
           </div>
         </div>
@@ -215,4 +191,3 @@ function GrammarChecker({ setIsAuthenticated }) {
 }
 
 export default GrammarChecker
-

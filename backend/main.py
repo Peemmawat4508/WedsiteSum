@@ -1,10 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
 import os
@@ -19,12 +16,11 @@ import json
 load_dotenv()
 
 from database import SessionLocal, engine, Base
-from models import User, Document
-from schemas import UserCreate, UserResponse, DocumentResponse, SummaryResponse, QueryRequest, QueryResponse, ChatRequest, ChatResponse, ImageGenerationRequest, ImageGenerationResponse, ExportRequest, GrammarCheckRequest, GrammarCheckResponse
-from auth import get_current_user, create_access_token, verify_password, get_password_hash
+from models import Document
+from schemas import DocumentResponse, SummaryResponse, QueryRequest, QueryResponse, ChatRequest, ChatResponse, ImageGenerationRequest, ImageGenerationResponse, ExportRequest, GrammarCheckRequest, GrammarCheckResponse
 from summarizer import summarize_text, create_chunks, create_embeddings, query_documents, generate_rag_answer, chat_with_gpt, generate_image, grammar_check
 
-app = FastAPI(title="Document Summarizer API")
+app = FastAPI(title="Document Summarizer API (Guest Mode)")
 
 # Setup startup event for table creation
 @app.on_event("startup")
@@ -33,29 +29,6 @@ async def startup_event():
         # Create tables
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully")
-        
-        # Create Guest User on startup
-        db = SessionLocal()
-        try:
-            guest_email = "guest@example.com"
-            user = db.query(User).filter(User.email == guest_email).first()
-            if not user:
-                print("Creating Guest User...")
-                from auth import get_password_hash 
-                user = User(
-                    email=guest_email,
-                    hashed_password=get_password_hash("guest_password"),
-                    full_name="Guest User",
-                    is_active=True
-                )
-                db.add(user)
-                db.commit()
-                print("Guest User created successfully")
-        except Exception as e:
-            print(f"Error creating guest user: {e}")
-        finally:
-            db.close()
-            
     except Exception as e:
         print(f"Error in startup_event: {e}")
 
@@ -75,8 +48,6 @@ async def global_exception_handler(request, exc):
 @app.get("/debug")
 async def debug_endpoint():
     """Diagnostic endpoint to check environment"""
-    import shutil
-    
     debug_info = {
         "status": "online",
         "timestamp": datetime.utcnow().isoformat(),
@@ -96,8 +67,8 @@ async def debug_endpoint():
     # Check DB connection
     try:
         db = SessionLocal()
-        user_count = db.query(User).count()
-        debug_info["database"] = {"status": "connected", "user_count": user_count}
+        doc_count = db.query(Document).count()
+        debug_info["database"] = {"status": "connected", "document_count": doc_count}
         db.close()
     except Exception as e:
         debug_info["database"] = {"status": "error", "error": str(e)}
@@ -106,7 +77,7 @@ async def debug_endpoint():
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "Backend is running"}
+    return {"status": "ok", "message": "Backend is running in Guest Mode"}
 
 # CORS configuration
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
@@ -131,14 +102,6 @@ async def validate_content_length(request: Request, call_next):
             )
     return await call_next(request)
 
-# Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # Dependency to get DB session
 def get_db():
     try:
@@ -154,6 +117,7 @@ def get_db():
             detail="Database service is currently unavailable"
         )
 
+# --- Text Extraction Functions ---
 # Extract text from PDF - improved for Thai characters
 def extract_text_from_pdf(file_content: bytes) -> str:
     import io
@@ -185,11 +149,9 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     
     return text
 
-# Extract text from TXT
 def extract_text_from_txt(file_content: bytes) -> str:
     return file_content.decode('utf-8')
 
-# Extract text from DOCX (Word documents)
 def extract_text_from_docx(file_content: bytes) -> str:
     import io
     try:
@@ -205,7 +167,6 @@ def extract_text_from_docx(file_content: bytes) -> str:
     except Exception as e:
         raise Exception(f"Error extracting text from DOCX: {str(e)}")
 
-# Extract text from XLSX (Excel files)
 def extract_text_from_xlsx(file_content: bytes) -> str:
     import io
     try:
@@ -227,7 +188,6 @@ def extract_text_from_xlsx(file_content: bytes) -> str:
     except Exception as e:
         raise Exception(f"Error extracting text from XLSX: {str(e)}")
 
-# Extract text from CSV
 def extract_text_from_csv(file_content: bytes) -> str:
     import io
     import csv
@@ -250,7 +210,6 @@ def extract_text_from_csv(file_content: bytes) -> str:
     except Exception as e:
         raise Exception(f"Error extracting text from CSV: {str(e)}")
 
-# Extract text from Markdown
 def extract_text_from_md(file_content: bytes) -> str:
     try:
         import markdown
@@ -266,7 +225,6 @@ def extract_text_from_md(file_content: bytes) -> str:
     except Exception as e:
         return file_content.decode('utf-8', errors='ignore')
 
-# Extract text from HTML
 def extract_text_from_html(file_content: bytes) -> str:
     try:
         from bs4 import BeautifulSoup
@@ -282,7 +240,6 @@ def extract_text_from_html(file_content: bytes) -> str:
     except Exception as e:
         return file_content.decode('utf-8', errors='ignore')
 
-# Extract text from images using OCR
 def extract_text_from_image(file_content: bytes, filename: str) -> str:
     try:
         from PIL import Image
@@ -293,20 +250,17 @@ def extract_text_from_image(file_content: bytes, filename: str) -> str:
         image = Image.open(io.BytesIO(file_content))
         
         # Perform OCR
-        # Try with English and Thai languages
         try:
             text = pytesseract.image_to_string(image, lang='eng+tha')
         except:
-            # Fallback to English only
             text = pytesseract.image_to_string(image, lang='eng')
         
         return text.strip()
     except ImportError:
-        raise Exception("Pillow and pytesseract libraries are required for image OCR. Also install Tesseract OCR: https://github.com/tesseract-ocr/tesseract")
+        raise Exception("Pillow and pytesseract libraries are required for image OCR.")
     except Exception as e:
         raise Exception(f"Error extracting text from image: {str(e)}")
 
-# Main text extraction function
 def extract_text_from_file(file_content: bytes, filename: str) -> str:
     """Extract text from various file types based on extension."""
     filename_lower = filename.lower()
@@ -333,94 +287,11 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             detail=f"Unsupported file type: {filename_lower.split('.')[-1] if '.' in filename_lower else 'unknown'}"
         )
 
-@app.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    db_user = db.query(User).filter(User.email == user_data.email).first()
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Create new user
-    hashed_password = get_password_hash(user_data.password)
-    db_user = User(
-        email=user_data.email,
-        hashed_password=hashed_password,
-        full_name=user_data.full_name
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return UserResponse(
-        id=db_user.id,
-        email=db_user.email,
-        full_name=db_user.full_name,
-        is_active=db_user.is_active
-    )
-
-@app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-class GoogleAuthRequest(BaseModel):
-    email: str
-    name: str
-    google_id: Optional[str] = None
-
-@app.post("/google-auth")
-async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db)):
-    # In production, you should verify the Google token on the frontend
-    # and send the verified user information here
-    try:
-        email = auth_data.email
-        name = auth_data.name or ""
-        
-        if not email:
-            raise HTTPException(status_code=400, detail="Email is required")
-        
-        # Find or create user
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            user = User(
-                email=email,
-                full_name=name,
-                hashed_password="",  # Google users don't need password
-                is_active=True
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        
-        access_token = create_access_token(data={"sub": user.email})
-        return {"access_token": access_token, "token_type": "bearer"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Google authentication failed: {str(e)}")
-
-@app.get("/me", response_model=UserResponse)
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        is_active=current_user.is_active
-    )
+# --- End Text Extraction Functions ---
 
 @app.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Read file content
@@ -459,7 +330,6 @@ async def upload_document(
     # Create document record
     db_document = Document(
         filename=file.filename,
-        user_id=current_user.id,
         original_text=text,  # Store full text
         chunks=json.dumps(chunks_data) if chunks_data else None,
         embeddings=json.dumps(embeddings) if embeddings else None
@@ -477,14 +347,10 @@ async def upload_document(
 @app.post("/summarize/{document_id}", response_model=SummaryResponse)
 async def summarize_document(
     document_id: int,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Get document
-    document = db.query(Document).filter(
-        Document.id == document_id,
-        Document.user_id == current_user.id
-    ).first()
+    document = db.query(Document).filter(Document.id == document_id).first()
     
     if not document:
         raise HTTPException(
@@ -515,13 +381,8 @@ async def summarize_document(
     )
 
 @app.get("/documents", response_model=list[DocumentResponse])
-async def get_documents(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    documents = db.query(Document).filter(
-        Document.user_id == current_user.id
-    ).order_by(Document.uploaded_at.desc()).all()
+async def get_documents(db: Session = Depends(get_db)):
+    documents = db.query(Document).order_by(Document.uploaded_at.desc()).all()
     
     return [
         DocumentResponse(
@@ -536,14 +397,10 @@ async def get_documents(
 @app.delete("/documents/{document_id}")
 async def delete_document(
     document_id: int,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete a document"""
-    document = db.query(Document).filter(
-        Document.id == document_id,
-        Document.user_id == current_user.id
-    ).first()
+    document = db.query(Document).filter(Document.id == document_id).first()
     
     if not document:
         raise HTTPException(
@@ -559,24 +416,16 @@ async def delete_document(
 @app.post("/query", response_model=QueryResponse)
 async def query_document(
     query_data: QueryRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Query documents using RAG. 
-    If document_id is provided, searches only that document.
-    Otherwise, searches all user documents.
     """
     # Get documents to search
     if query_data.document_id:
-        documents = db.query(Document).filter(
-            Document.id == query_data.document_id,
-            Document.user_id == current_user.id
-        ).all()
+        documents = db.query(Document).filter(Document.id == query_data.document_id).all()
     else:
-        documents = db.query(Document).filter(
-            Document.user_id == current_user.id
-        ).all()
+        documents = db.query(Document).all()
     
     if not documents:
         raise HTTPException(
@@ -601,7 +450,7 @@ async def query_document(
     if not all_chunks:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No document chunks available for RAG queries. This usually means the documents were uploaded before the RAG feature was enabled. Please re-upload your documents to enable query functionality."
+            detail="No document chunks available for RAG queries."
         )
     
     # Query documents using RAG
@@ -633,10 +482,7 @@ async def query_document(
     )
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(
-    chat_data: ChatRequest,
-    current_user: User = Depends(get_current_user)
-):
+async def chat(chat_data: ChatRequest):
     """
     Chat with GPT like ChatGPT - normal conversation without document context.
     """
@@ -664,10 +510,7 @@ async def chat(
     )
 
 @app.post("/generate-image", response_model=ImageGenerationResponse)
-async def generate_image_endpoint(
-    image_data: ImageGenerationRequest,
-    current_user: User = Depends(get_current_user)
-):
+async def generate_image_endpoint(image_data: ImageGenerationRequest):
     """
     Generate an image using DALL-E based on a text prompt.
     """
@@ -714,14 +557,13 @@ async def generate_image_endpoint(
 @app.post("/export")
 async def export_summaries(
     export_data: ExportRequest,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Export document summaries in various formats (PDF, TXT, or JSON).
     """
     # Get documents to export
-    query = db.query(Document).filter(Document.user_id == current_user.id)
+    query = db.query(Document)
     
     if export_data.document_ids:
         query = query.filter(Document.id.in_(export_data.document_ids))
@@ -757,7 +599,7 @@ async def export_summaries(
                 })
             
             json_content = json.dumps({
-                "user": current_user.email,
+                "user": "guest",
                 "exported_at": datetime.utcnow().isoformat(),
                 "total_documents": len(documents),
                 "documents": export_data_list
@@ -774,7 +616,7 @@ async def export_summaries(
         elif format_type == "txt":
             # Export as TXT
             txt_content = f"Document Summaries Export\n"
-            txt_content += f"User: {current_user.email}\n"
+            txt_content += f"User: Guest\n"
             txt_content += f"Exported: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n"
             txt_content += f"Total Documents: {len(documents)}\n"
             txt_content += "=" * 80 + "\n\n"
@@ -794,121 +636,16 @@ async def export_summaries(
                 }
             )
         
-        else:  # PDF
-            # Export as PDF (simple text-based PDF)
-            try:
-                from reportlab.lib.pagesizes import letter
-                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                from reportlab.lib.units import inch
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
-                from reportlab.lib.enums import TA_CENTER, TA_LEFT
-                from io import BytesIO
-                
-                buffer = BytesIO()
-                pdf_doc = SimpleDocTemplate(buffer, pagesize=letter)
-                story = []
-                
-                # Define styles
-                styles = getSampleStyleSheet()
-                title_style = ParagraphStyle(
-                    'CustomTitle',
-                    parent=styles['Heading1'],
-                    fontSize=18,
-                    textColor=(102, 126, 234),
-                    spaceAfter=30,
-                    alignment=TA_CENTER
-                )
-                heading_style = ParagraphStyle(
-                    'CustomHeading',
-                    parent=styles['Heading2'],
-                    fontSize=14,
-                    textColor=(51, 51, 51),
-                    spaceAfter=12,
-                    spaceBefore=12
-                )
-                normal_style = styles['Normal']
-                
-                # Title
-                story.append(Paragraph("Document Summaries Export", title_style))
-                story.append(Spacer(1, 0.2*inch))
-                story.append(Paragraph(f"User: {current_user.email}", normal_style))
-                story.append(Paragraph(f"Exported: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
-                story.append(Paragraph(f"Total Documents: {len(documents)}", normal_style))
-                story.append(Spacer(1, 0.3*inch))
-                
-                # Documents
-                for i, document in enumerate(documents, 1):
-                    if i > 1:
-                        story.append(PageBreak())
-                    
-                    story.append(Paragraph(f"Document {i}: {document.filename}", heading_style))
-                    story.append(Paragraph(f"Uploaded: {document.uploaded_at.strftime('%Y-%m-%d %H:%M:%S') if document.uploaded_at else 'N/A'}", normal_style))
-                    story.append(Spacer(1, 0.2*inch))
-                    story.append(Paragraph("Summary:", heading_style))
-                    summary_text = document.summary or "No summary available"
-                    # Replace newlines with <br/> for PDF and escape HTML
-                    summary_text = summary_text.replace('\n', '<br/>').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    story.append(Paragraph(summary_text, normal_style))
-                
-                pdf_doc.build(story)
-                buffer.seek(0)
-                
-                return Response(
-                    content=buffer.read(),
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="summaries_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.pdf"'
-                    }
-                )
-            except ImportError:
-                # Fallback to TXT if reportlab is not installed
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="PDF export requires reportlab library. Please install it or use TXT/JSON format."
-                )
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Export failed: {str(e)}"
-        )
-
-@app.post("/grammar-check", response_model=GrammarCheckResponse)
-async def check_grammar(
-    request: GrammarCheckRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Check and correct grammar in the provided text.
-    """
-    try:
-        if not request.text or not request.text.strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Text cannot be empty"
+        else:
+            # Fallback for PDF
+            return Response(
+                content="PDF export not available in this version",
+                media_type="text/plain"
             )
-        
-        result = grammar_check(request.text)
-        
-        return GrammarCheckResponse(
-            corrected_text=result["corrected_text"],
-            corrections=[
-                {
-                    "original": corr.get("original", ""),
-                    "corrected": corr.get("corrected", ""),
-                    "explanation": corr.get("explanation", "")
-                }
-                for corr in result.get("corrections", [])
-            ],
-            has_errors=result.get("has_errors", False)
-        )
-    
+
     except Exception as e:
+        print(f"Export error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Grammar check failed: {str(e)}"
+            detail=f"Error exporting documents: {str(e)}"
         )
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-

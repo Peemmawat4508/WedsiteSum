@@ -1,11 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { GoogleOAuthProvider } from '@react-oauth/google'
 import { LanguageProvider } from './contexts/LanguageContext'
 import App from './App'
 import './index.css'
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 // Error boundary component
 class ErrorBoundary extends React.Component {
@@ -45,20 +42,14 @@ if (!rootElement) {
 
 try {
   const root = ReactDOM.createRoot(rootElement)
-  
+
   // Wrap with providers
   const appContent = (
     <LanguageProvider>
-      {GOOGLE_CLIENT_ID ? (
-        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-          <App />
-        </GoogleOAuthProvider>
-      ) : (
-        <App />
-      )}
+      <App />
     </LanguageProvider>
   )
-  
+
   root.render(
     <React.StrictMode>
       <ErrorBoundary>

@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiRequest, uploadFile, removeToken, getToken } from '../utils/auth'
+import { apiRequest, uploadFile } from '../utils/auth'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getTranslation } from '../utils/translations'
 import LanguageSwitcher from './LanguageSwitcher'
 import './Dashboard.css'
 
-function Dashboard({ setIsAuthenticated }) {
+function Dashboard() {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [summarizing, setSummarizing] = useState({})
   const [error, setError] = useState('')
-  const [user, setUser] = useState(null)
   const [query, setQuery] = useState('')
   const [queryResult, setQueryResult] = useState(null)
   const [querying, setQuerying] = useState(false)
@@ -26,24 +25,8 @@ function Dashboard({ setIsAuthenticated }) {
   const navigate = useNavigate()
 
   useEffect(() => {
-    loadUser()
     loadDocuments()
   }, [])
-
-  const loadUser = async () => {
-    try {
-      const userData = await apiRequest('/me')
-      setUser(userData)
-    } catch (err) {
-      console.warn('Failed to load user data, using default guest:', err)
-      // Fallback to guest user silently
-      setUser({
-        full_name: 'Guest User',
-        email: 'guest@example.com'
-      })
-      // Do not show error to user
-    }
-  }
 
   const loadDocuments = async () => {
     setLoading(true)
@@ -160,17 +143,15 @@ function Dashboard({ setIsAuthenticated }) {
     setError('')
 
     try {
-      const token = getToken()
       const exportData = {
         format: exportFormat,
         document_ids: selectedDocsForExport.length > 0 ? selectedDocsForExport : null
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/export`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '/api')}/export`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(exportData)
       })
@@ -220,12 +201,6 @@ function Dashboard({ setIsAuthenticated }) {
     )
   }
 
-  const handleLogout = () => {
-    removeToken()
-    setIsAuthenticated(false)
-    navigate('/login')
-  }
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString()
   }
@@ -246,7 +221,6 @@ function Dashboard({ setIsAuthenticated }) {
             <button onClick={() => navigate('/grammar-checker')} className="btn-nav">
               ✏️ {t('grammarChecker')}
             </button>
-            {user && <span className="user-name">{t('welcome')}, {user.full_name || user.email}</span>}
           </div>
         </div>
       </header>
